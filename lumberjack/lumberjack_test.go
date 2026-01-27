@@ -402,7 +402,7 @@ func TestMaxAge(t *testing.T) {
 
 	// we need to wait a little bit since the files get deleted on a different
 	// goroutine.
-	<-time.After(10 * time.Millisecond)
+	<-time.After(100 * time.Millisecond)
 
 	// We should still have 2 log files, since the most recent backup was just
 	// created.
@@ -422,7 +422,7 @@ func TestMaxAge(t *testing.T) {
 
 	// we need to wait a little bit since the files get deleted on a different
 	// goroutine.
-	<-time.After(10 * time.Millisecond)
+	<-time.After(100 * time.Millisecond)
 
 	// We should have 2 log files - the main log file, and the most recent
 	// backup.  The earlier backup is past the cutoff and should be gone.
