@@ -1,11 +1,16 @@
-﻿package logger
+package logger
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/aura-studio/logger/lumberjack"
 	"github.com/containrrr/shoutrrr"
@@ -112,6 +117,102 @@ func (*HookGenerator) File(s string) (logrus.Hook, error) {
 	}
 
 	return &FileHook{logger, NewLogLevels(s), NewFormatOptions(s)}, nil
+}
+
+const defaultTangoTimeout = 10 * time.Second
+
+var _ logrus.Hook = &TangoHook{}
+
+type TangoHook struct {
+	url           string
+	client        *http.Client
+	headers       map[string]string
+	logLevels     *LogLevels
+	formatOptions *FormatOptions
+}
+
+func (h *TangoHook) Fire(entry *logrus.Entry) error {
+	if h.url == "" {
+		return nil
+	}
+
+	if entry.Context == nil {
+		entry.Context = context.WithValue(context.Background(), ContextFormatOptions, h.formatOptions)
+	} else {
+		entry.Context = context.WithValue(entry.Context, ContextFormatOptions, h.formatOptions)
+	}
+
+	cachedBytes, hadCachedBytes := entry.Data["Bytes"]
+	delete(entry.Data, "Bytes")
+	line, err := entry.Bytes()
+	if hadCachedBytes {
+		entry.Data["Bytes"] = cachedBytes
+	} else {
+		delete(entry.Data, "Bytes")
+	}
+	if err != nil {
+		return fmt.Errorf("tango hook format payload: %w", err)
+	}
+
+	body, err := json.Marshal(map[string]string{"line": string(line)})
+	if err != nil {
+		return fmt.Errorf("tango hook marshal payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(entry.Context, http.MethodPost, h.url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("tango hook build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range h.headers {
+		req.Header.Set(key, value)
+	}
+
+	resp, err := h.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("tango hook post request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		data, readErr := io.ReadAll(io.LimitReader(resp.Body, 256))
+		if readErr != nil {
+			return fmt.Errorf("tango hook http status %d: read body: %w", resp.StatusCode, readErr)
+		}
+		return fmt.Errorf("tango hook http status %d: %s", resp.StatusCode, string(data))
+	}
+
+	return nil
+}
+
+func (h *TangoHook) Levels() []logrus.Level {
+	return h.logLevels.ToLogrus()
+}
+
+func (*HookGenerator) Tango(s string) (logrus.Hook, error) {
+	timeout := defaultTangoTimeout
+	timeoutValue := gjson.Get(s, "timeout").String()
+	if timeoutValue != "" {
+		parsed, err := time.ParseDuration(timeoutValue)
+		if err != nil {
+			return nil, fmt.Errorf("tango hook parse timeout: %w", err)
+		}
+		timeout = parsed
+	}
+
+	headers := make(map[string]string)
+	gjson.Get(s, "headers").ForEach(func(key, value gjson.Result) bool {
+		headers[key.String()] = value.String()
+		return true
+	})
+
+	return &TangoHook{
+		url:           gjson.Get(s, "url").String(),
+		client:        &http.Client{Timeout: timeout},
+		headers:       headers,
+		logLevels:     NewLogLevels(s),
+		formatOptions: NewFormatOptions(s),
+	}, nil
 }
 
 var stderr = colorable.NewColorableStderr()
