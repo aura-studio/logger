@@ -3,7 +3,7 @@ module github.com/aura-studio/logger
 go 1.25.5
 
 require (
-	github.com/aura-studio/aws-ease v0.4.2
+	github.com/aura-studio/aws-ease v1.0.0
 	github.com/aura-studio/cast v1.0.1
 	github.com/containrrr/shoutrrr v0.6.1
 	github.com/innopals/sls-logrus-hook v0.0.0-20190808032145-2fe1d6f7ce00

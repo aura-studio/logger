@@ -5,8 +5,8 @@ github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAE
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
-github.com/aura-studio/aws-ease v0.4.2 h1:iE4ieRc5X0CFSSOyYeJEhYyuFZ8OcOORDzyyOpnQ2/U=
-github.com/aura-studio/aws-ease v0.4.2/go.mod h1:5FznJAkMKt6xgfBD+NSeeW38qqNLPJvTiFzTfD8iabU=
+github.com/aura-studio/aws-ease v1.0.0 h1:KrlGU2s8PMZUcYJVSNXs84Dr5YZq1YacBGH357esCC4=
+github.com/aura-studio/aws-ease v1.0.0/go.mod h1:5FznJAkMKt6xgfBD+NSeeW38qqNLPJvTiFzTfD8iabU=
 github.com/aura-studio/cast v1.0.1 h1:G1v1CYUAuw0vWxIG0r0umpR9Ugu8KuC8dmRo7vWCjdE=
 github.com/aura-studio/cast v1.0.1/go.mod h1:i9IpOHVg0vcW3er5QfRZZUKAN5CdBUVd82R6mkT8CSE=
 github.com/aws/aws-sdk-go-v2 v1.17.4/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
