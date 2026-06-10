@@ -1,17 +1,16 @@
 package logger
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"reflect"
 	"strings"
 	"time"
 
+	awsease "github.com/aura-studio/aws-ease"
 	"github.com/aura-studio/logger/lumberjack"
 	"github.com/containrrr/shoutrrr"
 	"github.com/containrrr/shoutrrr/pkg/router"
@@ -123,10 +122,14 @@ const defaultTangoTimeout = 10 * time.Second
 
 var _ logrus.Hook = &TangoHook{}
 
+// TangoHook ships formatted log lines to a tango endpoint addressed by an
+// aws-ease URL: http(s)://… posts over HTTP (local), lambda://<fn> goes through
+// lambda.Invoke (production) — switching transports is just swapping the url
+// string in config. Any failure (transport, non-2xx, lambda FunctionError)
+// surfaces as the returned error.
 type TangoHook struct {
 	url           string
-	client        *http.Client
-	headers       map[string]string
+	client        *awsease.Client
 	logLevels     *LogLevels
 	formatOptions *FormatOptions
 }
@@ -159,27 +162,8 @@ func (h *TangoHook) Fire(entry *logrus.Entry) error {
 		return fmt.Errorf("tango hook marshal payload: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(entry.Context, http.MethodPost, h.url, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("tango hook build request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	for key, value := range h.headers {
-		req.Header.Set(key, value)
-	}
-
-	resp, err := h.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("tango hook post request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		data, readErr := io.ReadAll(io.LimitReader(resp.Body, 256))
-		if readErr != nil {
-			return fmt.Errorf("tango hook http status %d: read body: %w", resp.StatusCode, readErr)
-		}
-		return fmt.Errorf("tango hook http status %d: %s", resp.StatusCode, string(data))
+	if _, err := h.client.Invoke(entry.Context, h.url, body); err != nil {
+		return fmt.Errorf("tango hook: %w", err)
 	}
 
 	return nil
@@ -187,6 +171,22 @@ func (h *TangoHook) Fire(entry *logrus.Entry) error {
 
 func (h *TangoHook) Levels() []logrus.Level {
 	return h.logLevels.ToLogrus()
+}
+
+// tangoHeaderTransport sets Content-Type and the configured headers on every
+// outgoing HTTP request. Headers only exist on the http(s) backend; lambda://
+// goes through the AWS SDK and ignores them.
+type tangoHeaderTransport struct {
+	headers map[string]string
+}
+
+func (t *tangoHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range t.headers {
+		req.Header.Set(key, value)
+	}
+	return http.DefaultTransport.RoundTrip(req)
 }
 
 func (*HookGenerator) Tango(s string) (logrus.Hook, error) {
@@ -207,9 +207,12 @@ func (*HookGenerator) Tango(s string) (logrus.Hook, error) {
 	})
 
 	return &TangoHook{
-		url:           gjson.Get(s, "url").String(),
-		client:        &http.Client{Timeout: timeout},
-		headers:       headers,
+		url: gjson.Get(s, "url").String(),
+		client: awsease.New(
+			awsease.WithTimeout(timeout),
+			// Timeout 留零：超时统一由 awsease.WithTimeout 的 context 管理。
+			awsease.WithHTTPClient(&http.Client{Transport: &tangoHeaderTransport{headers: headers}}),
+		),
 		logLevels:     NewLogLevels(s),
 		formatOptions: NewFormatOptions(s),
 	}, nil

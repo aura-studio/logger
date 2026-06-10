@@ -2,12 +2,14 @@ package logger
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	awsease "github.com/aura-studio/aws-ease"
 	"github.com/sirupsen/logrus"
 )
 
@@ -108,6 +110,26 @@ func TestTangoHookPostsFormattedMessage(t *testing.T) {
 	}
 	if properties["coin"] != float64(7) {
 		t.Fatalf("coin = %v, want 7", properties["coin"])
+	}
+}
+
+// TestTangoHookURLUsesAwsEase 钉住 url 走 aws-ease 语义：scheme 决定后端，
+// 非法 scheme 的错误能用 aws-ease 哨兵判别（http/lambda 的正向路径分别由
+// TestTangoHookPostsFormattedMessage 与真实环境集成验证覆盖）。
+func TestTangoHookURLUsesAwsEase(t *testing.T) {
+	hook, err := NewHook("tango", `{"level":"info","format":"message","url":"ftp://nope"}`)
+	if err != nil {
+		t.Fatalf("new hook: %v", err)
+	}
+
+	logger := logrus.New()
+	logger.SetOutput(io.Discard)
+	logger.SetFormatter(&JSONFormatter{JSONFormatter: logrus.JSONFormatter{DisableTimestamp: true}})
+	entry := logger.WithField("#type", "track")
+
+	fireErr := hook.Fire(entry)
+	if !errors.Is(fireErr, awsease.ErrUnknownScheme) {
+		t.Fatalf("Fire err = %v, want errors.Is awsease.ErrUnknownScheme", fireErr)
 	}
 }
 
