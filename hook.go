@@ -130,7 +130,6 @@ var _ logrus.Hook = &TangoHook{}
 type TangoHook struct {
 	url           string
 	profile       string
-	database      string
 	client        *awsease.Client
 	logLevels     *LogLevels
 	formatOptions *FormatOptions
@@ -162,10 +161,6 @@ func (h *TangoHook) Fire(entry *logrus.Entry) error {
 	payload := map[string]string{"line": string(line)}
 	if h.profile != "" {
 		payload["Profile"] = h.profile
-	} else if h.database != "" {
-		// Compatibility with the short-lived v1.0.6 configuration. New
-		// deployments route by Profile and let Tango resolve the database.
-		payload["Database"] = h.database
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -217,9 +212,8 @@ func (*HookGenerator) Tango(s string) (logrus.Hook, error) {
 	})
 
 	return &TangoHook{
-		url:      gjson.Get(s, "url").String(),
-		profile:  gjson.Get(s, "profile").String(),
-		database: gjson.Get(s, "database").String(),
+		url:     gjson.Get(s, "url").String(),
+		profile: gjson.Get(s, "profile").String(),
 		client: awsease.New(
 			awsease.WithTimeout(timeout),
 			// Timeout 留零：超时统一由 awsease.WithTimeout 的 context 管理。

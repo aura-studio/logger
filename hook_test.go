@@ -118,33 +118,6 @@ func TestTangoHookPostsFormattedMessage(t *testing.T) {
 	}
 }
 
-func TestTangoHookDatabaseCompatibility(t *testing.T) {
-	var got map[string]json.RawMessage
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
-			t.Fatalf("decode body: %v", err)
-		}
-	}))
-	t.Cleanup(srv.Close)
-
-	hook, err := NewHook("tango", `{"level":"info","format":"message","url":"`+srv.URL+`","database":"tango_aurora"}`)
-	if err != nil {
-		t.Fatalf("new hook: %v", err)
-	}
-	logger := logrus.New()
-	logger.SetOutput(io.Discard)
-	logger.SetFormatter(&JSONFormatter{JSONFormatter: logrus.JSONFormatter{DisableTimestamp: true}})
-	logger.AddHook(hook)
-	logger.WithField("#type", "track").Info("")
-
-	if _, ok := got["Database"]; !ok {
-		t.Fatal("v1.0.6 compatibility payload is missing Database")
-	}
-	if _, ok := got["Profile"]; ok {
-		t.Fatal("database compatibility payload unexpectedly contains Profile")
-	}
-}
-
 func TestTangoHookOmitsRoutingKeyWhenNotConfigured(t *testing.T) {
 	var got map[string]json.RawMessage
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -165,9 +138,6 @@ func TestTangoHookOmitsRoutingKeyWhenNotConfigured(t *testing.T) {
 	logger.AddHook(hook)
 	logger.WithField("#type", "track").Info("")
 
-	if _, ok := got["Database"]; ok {
-		t.Fatal("legacy payload unexpectedly contains Database")
-	}
 	if _, ok := got["Profile"]; ok {
 		t.Fatal("legacy payload unexpectedly contains Profile")
 	}
