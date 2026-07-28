@@ -129,6 +129,7 @@ var _ logrus.Hook = &TangoHook{}
 // surfaces as the returned error.
 type TangoHook struct {
 	url           string
+	profile       string
 	database      string
 	client        *awsease.Client
 	logLevels     *LogLevels
@@ -159,7 +160,11 @@ func (h *TangoHook) Fire(entry *logrus.Entry) error {
 	}
 
 	payload := map[string]string{"line": string(line)}
-	if h.database != "" {
+	if h.profile != "" {
+		payload["Profile"] = h.profile
+	} else if h.database != "" {
+		// Compatibility with the short-lived v1.0.6 configuration. New
+		// deployments route by Profile and let Tango resolve the database.
 		payload["Database"] = h.database
 	}
 	body, err := json.Marshal(payload)
@@ -213,6 +218,7 @@ func (*HookGenerator) Tango(s string) (logrus.Hook, error) {
 
 	return &TangoHook{
 		url:      gjson.Get(s, "url").String(),
+		profile:  gjson.Get(s, "profile").String(),
 		database: gjson.Get(s, "database").String(),
 		client: awsease.New(
 			awsease.WithTimeout(timeout),
