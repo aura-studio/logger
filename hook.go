@@ -129,6 +129,7 @@ var _ logrus.Hook = &TangoHook{}
 // surfaces as the returned error.
 type TangoHook struct {
 	url           string
+	database      string
 	client        *awsease.Client
 	logLevels     *LogLevels
 	formatOptions *FormatOptions
@@ -157,7 +158,11 @@ func (h *TangoHook) Fire(entry *logrus.Entry) error {
 		return fmt.Errorf("tango hook format payload: %w", err)
 	}
 
-	body, err := json.Marshal(map[string]string{"line": string(line)})
+	payload := map[string]string{"line": string(line)}
+	if h.database != "" {
+		payload["Database"] = h.database
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("tango hook marshal payload: %w", err)
 	}
@@ -207,7 +212,8 @@ func (*HookGenerator) Tango(s string) (logrus.Hook, error) {
 	})
 
 	return &TangoHook{
-		url: gjson.Get(s, "url").String(),
+		url:      gjson.Get(s, "url").String(),
+		database: gjson.Get(s, "database").String(),
 		client: awsease.New(
 			awsease.WithTimeout(timeout),
 			// Timeout 留零：超时统一由 awsease.WithTimeout 的 context 管理。
